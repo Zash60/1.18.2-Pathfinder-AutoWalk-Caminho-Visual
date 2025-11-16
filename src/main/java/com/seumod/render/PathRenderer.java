@@ -6,10 +6,10 @@ import com.seumod.pathfinder.SimplePathfinder;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.*;
-import net.minecraft.client.util.math.MatrixStack; // <-- ADD THIS LINE
+import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
-import org.joml.Matrix4f;
+import net.minecraft.util.math.Matrix4f; // <-- CHANGE THIS LINE
 import java.util.List;
 
 public class PathRenderer {
