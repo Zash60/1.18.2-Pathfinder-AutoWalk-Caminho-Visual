@@ -8,8 +8,7 @@
   "license": "MIT",
   "environment": "client",
   "entrypoints": {
-    "client": ["com.seumod.PathfinderAutoWalkMod"],
-    "fabric-command-api-v1": ["com.seumod.commands.GotoCommand"]
+    "client": ["com.seumod.PathfinderAutoWalkMod"]
   },
   "depends": {
     "fabricloader": ">=0.16.0",
