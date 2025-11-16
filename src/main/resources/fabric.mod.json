@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "pathfinder-autowalk",
+  "version": "${version}",
+  "name": "Pathfinder AutoWalk",
+  "description": "Pathfinding, auto-walk e goto X Y Z para 1.18.2",
+  "authors": ["Zash60"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.seumod.PathfinderAutoWalkMod"],
+    "fabric-command-api-v1": ["com.seumod.commands.GotoCommand"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "fabric-api": "*",
+    "minecraft": "1.18.x"
+  }
+}
