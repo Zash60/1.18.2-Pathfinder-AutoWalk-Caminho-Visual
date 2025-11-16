@@ -43,7 +43,7 @@ public class SimplePathfinder {
 
     private int getSafeY(World world, int x, int y, int z) {
         BlockPos pos = new BlockPos(x, y, z);
-        while (pos.getY() > 0 && world.getBlockState(pos).isAir()) {
+        while (pos.getY() > world.getBottomY() && world.getBlockState(pos).isAir()) {
             pos = pos.down();
         }
         if (!world.getBlockState(pos).isAir()) {
@@ -70,7 +70,7 @@ public class SimplePathfinder {
         client.options.forwardKey.setPressed(true);
         
         // Verificar e pular obstáculos
-        handleJumping(client, player, nextPos);
+        handleJumping(client, player);
         
         // Verificar se chegou
         if (player.getPos().distanceTo(nextVec) < 1.2) {
@@ -78,24 +78,28 @@ public class SimplePathfinder {
         }
     }
     
-    private void handleJumping(MinecraftClient client, PlayerEntity player, BlockPos targetPos) {
-        BlockPos playerPos = player.getBlockPos();
-        BlockPos frontPos = playerPos.offset(player.getHorizontalFacing());
-        BlockPos frontUpper = frontPos.up();
-        
-        BlockState frontBlock = client.world.getBlockState(frontPos);
-        BlockState frontUpBlock = client.world.getBlockState(frontUpper);
-        
-        // Detectar obstáculo ou necessidade de subir
-        boolean needsToJump = !frontBlock.isAir() || 
-                             (targetPos.getY() > playerPos.getY() + 1) ||
-                             (!client.world.getBlockState(playerPos.up()).isAir());
-        
-        if (needsToJump && player.isOnGround()) {
-            client.options.jumpKey.setPressed(true);
-        } else {
+    // <-- LÓGICA DE SALTO CORRIGIDA AQUI -->
+    private void handleJumping(MinecraftClient client, PlayerEntity player) {
+        if (!player.isOnGround()) {
             client.options.jumpKey.setPressed(false);
+            return;
         }
+
+        Vec3d playerPos = player.getPos();
+        Vec3d forwardVec = Vec3d.fromPolar(0, player.getYaw()).normalize().multiply(0.4);
+        BlockPos blockInFront = new BlockPos((int)(playerPos.x + forwardVec.x), player.getBlockPos().getY(), (int)(playerPos.z + forwardVec.z));
+
+        BlockState stateInFront = client.world.getBlockState(blockInFront);
+        BlockState stateInFrontUp = client.world.getBlockState(blockInFront.up());
+        BlockState statePlayerHead = client.world.getBlockState(player.getBlockPos().up(2));
+
+        // Só pula se:
+        // 1. O bloco na frente não for ar (é um obstáculo).
+        // 2. O bloco acima do obstáculo for ar (cabeça do jogador).
+        // 3. O bloco 2 acima do obstáculo também for ar (para não bater a cabeça ao pular).
+        boolean shouldJump = !stateInFront.isAir() && stateInFrontUp.isAir() && statePlayerHead.isAir();
+
+        client.options.jumpKey.setPressed(shouldJump);
     }
 
     public List<BlockPos> getPath() { return path; }
