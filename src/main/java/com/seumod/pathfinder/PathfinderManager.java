@@ -4,6 +4,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.text.LiteralText;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
 
 public class PathfinderManager {
     private static SimplePathfinder pathfinder = new SimplePathfinder();
@@ -18,7 +19,12 @@ public class PathfinderManager {
         enabled = true;
     }
     public static void setEnabled(boolean value) {
-        enabled = value; if (!enabled) stopMoving();
+        enabled = value;
+        if (!enabled) {
+            stopMoving();
+            targetPos = null; // Limpa o alvo ao desativar
+            pathfinder.getPath().clear();
+        }
     }
     public static boolean isEnabled() { return enabled; }
     public static boolean isAutoWalk() { return autoWalkActive; }
@@ -27,16 +33,22 @@ public class PathfinderManager {
     public static void update() {
         MinecraftClient client = MinecraftClient.getInstance();
         PlayerEntity player = client.player;
-        if (player == null || targetPos == null) return;
+        if (player == null || targetPos == null) {
+            setEnabled(false);
+            return;
+        }
 
-        if (player.getBlockPos().getSquaredDistance(targetPos) < 4.0) {
+        // <-- CONDIÇÃO DE CHEGADA CORRIGIDA AQUI -->
+        // Verifica se a posição do bloco do jogador é a mesma do alvo
+        if (player.getBlockPos().equals(targetPos)) {
             player.sendMessage(new LiteralText("§aDestino alcançado!"), true);
-            setEnabled(false); return;
+            setEnabled(false);
+            return;
         }
         pathfinder.update();
     }
 
-    private static void stopMoving() {
+    public static void stopMoving() {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.options != null) {
             client.options.forwardKey.setPressed(false);
