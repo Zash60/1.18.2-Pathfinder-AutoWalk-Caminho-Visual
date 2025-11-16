@@ -45,8 +45,19 @@ public class PathfinderAutoWalkMod implements ClientModInitializer {
                 ), true);
             }
 
+            // <-- LÓGICA DE ATIVAÇÃO/DESATIVAÇÃO CORRIGIDA AQUI -->
             if (PathfinderManager.isEnabled()) {
                 PathfinderManager.update();
+            } else {
+                // Garante que o movimento pare se o pathfinder for desativado por qualquer motivo
+                PathfinderManager.stopMoving();
+            }
+
+            // A lógica de autowalk simples pode ser separada
+            if (PathfinderManager.isAutoWalk() && !PathfinderManager.isEnabled()) {
+                client.options.forwardKey.setPressed(true);
+            } else if (!PathfinderManager.isEnabled()) {
+                 client.options.forwardKey.setPressed(false);
             }
         });
     }
