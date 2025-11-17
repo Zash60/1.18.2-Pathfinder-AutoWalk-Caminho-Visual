@@ -3,7 +3,7 @@ package com.seumod.commands;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.seumod.pathfinder.PathfinderManager;
 import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback;
-import net.minecraft.text.Text;
+import net.minecraft.text.LiteralText; // CORREÇÃO: Import correto para 1.18.2
 import net.minecraft.util.math.BlockPos;
 
 import static com.mojang.brigadier.arguments.IntegerArgumentType.getInteger;
@@ -21,11 +21,11 @@ public class GotoCommand {
                                 int x = getInteger(context, "x");
                                 int y = getInteger(context, "y");
                                 int z = getInteger(context, "z");
-
-                                // ANOTAÇÃO: Usamos o objeto Text moderno em vez de LiteralText
+                                
                                 PathfinderManager.setTarget(new BlockPos(x, y, z));
+                                // CORREÇÃO: Usando new LiteralText() em vez de Text.literal()
                                 context.getSource().sendFeedback(
-                                    Text.literal("§aCalculando caminho para: [" + x + ", " + y + ", " + z + "]"),
+                                    new LiteralText("§aCalculando caminho para: [" + x + ", " + y + ", " + z + "]"),
                                     false
                                 );
                                 return 1;
@@ -34,12 +34,12 @@ public class GotoCommand {
                     )
                 )
             );
-
-            // ANOTAÇÃO: Adicionado um comando /stop para conveniência.
+            
             dispatcher.register(literal("stop")
                 .executes(context -> {
                     PathfinderManager.setEnabled(false);
-                    context.getSource().sendFeedback(Text.literal("§cNavegação interrompida."), false);
+                    // CORREÇÃO: Usando new LiteralText() em vez de Text.literal()
+                    context.getSource().sendFeedback(new LiteralText("§cNavegação interrompida."), false);
                     return 1;
                 })
             );
