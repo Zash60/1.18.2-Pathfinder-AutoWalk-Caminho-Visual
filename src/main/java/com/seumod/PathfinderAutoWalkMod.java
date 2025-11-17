@@ -7,7 +7,8 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.option.KeyBinding;
-import net.minecraft.text.LiteralText;
+import net.minecraft.client.util.InputUtil;
+import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
 public class PathfinderAutoWalkMod implements ClientModInitializer {
@@ -18,47 +19,39 @@ public class PathfinderAutoWalkMod implements ClientModInitializer {
     public void onInitializeClient() {
         GotoCommand.register();
         PathRenderer.register();
-        PathfinderManager.initialize();
+
+        // ANOTAÇÃO: Centralizamos as constantes de categoria para evitar repetição.
+        String category = "category.pathfindermod";
 
         toggleAutoWalkKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-            "key.pathfindermod.toggle_autowalk", GLFW.GLFW_KEY_O, "category.pathfindermod"
+            "key.pathfindermod.toggle_autowalk", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_O, category
         ));
         
         togglePathfinderKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-            "key.pathfindermod.toggle_pathfinder", GLFW.GLFW_KEY_P, "category.pathfindermod"
+            "key.pathfindermod.toggle_pathfinder", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_P, category
         ));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player == null) return;
 
+            // ANOTAÇÃO: A lógica de toggle foi simplificada e movida para o PathfinderManager.
             while (toggleAutoWalkKey.wasPressed()) {
-                PathfinderManager.setAutoWalk(!PathfinderManager.isAutoWalk());
-                client.player.sendMessage(new LiteralText(
+                PathfinderManager.toggleAutoWalk();
+                client.player.sendMessage(Text.literal(
                     "AutoWalk: " + (PathfinderManager.isAutoWalk() ? "§aON" : "§cOFF")
                 ), true);
             }
 
             while (togglePathfinderKey.wasPressed()) {
-                PathfinderManager.setEnabled(!PathfinderManager.isEnabled());
-                client.player.sendMessage(new LiteralText(
+                PathfinderManager.togglePathfinder();
+                client.player.sendMessage(Text.literal(
                     "Pathfinder: " + (PathfinderManager.isEnabled() ? "§aON" : "§cOFF")
                 ), true);
             }
 
-            // <-- LÓGICA DE ATIVAÇÃO/DESATIVAÇÃO CORRIGIDA AQUI -->
-            if (PathfinderManager.isEnabled()) {
-                PathfinderManager.update();
-            } else {
-                // Garante que o movimento pare se o pathfinder for desativado por qualquer motivo
-                PathfinderManager.stopMoving();
-            }
-
-            // A lógica de autowalk simples pode ser separada
-            if (PathfinderManager.isAutoWalk() && !PathfinderManager.isEnabled()) {
-                client.options.forwardKey.setPressed(true);
-            } else if (!PathfinderManager.isEnabled()) {
-                 client.options.forwardKey.setPressed(false);
-            }
+            // ANOTAÇÃO: Lógica de movimento e atualização foi centralizada no PathfinderManager
+            // para maior clareza e para evitar bugs de estado.
+            PathfinderManager.update();
         });
     }
 }
