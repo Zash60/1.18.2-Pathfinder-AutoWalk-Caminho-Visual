@@ -1,5 +1,4 @@
 {
-  "key.pathfindermod.toggle_autowalk": "Toggle AutoWalk",
-  "key.pathfindermod.toggle_pathfinder": "Toggle Pathfinder",
+  "key.pathfindermod.toggle_pathfinder": "Pause/Resume Pathfinder",
   "category.pathfindermod": "Pathfinder Mod"
 }
