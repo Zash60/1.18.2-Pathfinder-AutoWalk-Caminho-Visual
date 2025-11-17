@@ -3,7 +3,7 @@ package com.seumod.commands;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.seumod.pathfinder.PathfinderManager;
 import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback;
-import net.minecraft.text.LiteralText; // CORREÇÃO: Import correto para 1.18.2
+import net.minecraft.text.LiteralText;
 import net.minecraft.util.math.BlockPos;
 
 import static com.mojang.brigadier.arguments.IntegerArgumentType.getInteger;
@@ -23,11 +23,7 @@ public class GotoCommand {
                                 int z = getInteger(context, "z");
                                 
                                 PathfinderManager.setTarget(new BlockPos(x, y, z));
-                                // CORREÇÃO: Usando new LiteralText() em vez de Text.literal()
-                                context.getSource().sendFeedback(
-                                    new LiteralText("§aCalculando caminho para: [" + x + ", " + y + ", " + z + "]"),
-                                    false
-                                );
+                                // A mensagem de feedback agora é enviada pelo PathfinderManager
                                 return 1;
                             })
                         )
@@ -37,8 +33,7 @@ public class GotoCommand {
             
             dispatcher.register(literal("stop")
                 .executes(context -> {
-                    PathfinderManager.setEnabled(false);
-                    // CORREÇÃO: Usando new LiteralText() em vez de Text.literal()
+                    PathfinderManager.stop();
                     context.getSource().sendFeedback(new LiteralText("§cNavegação interrompida."), false);
                     return 1;
                 })
