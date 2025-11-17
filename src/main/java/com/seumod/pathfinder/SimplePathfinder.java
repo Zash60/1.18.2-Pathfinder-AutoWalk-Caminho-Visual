@@ -1,106 +1,166 @@
 package com.seumod.pathfinder;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
 import net.minecraft.block.BlockState;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.RaycastContext;
+import net.minecraft.world.World;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class SimplePathfinder {
     private List<BlockPos> path = new ArrayList<>();
     private int currentIndex = 0;
-    private BlockPos target;
 
-    public void setTarget(BlockPos target) {
-        this.target = target;
+    public void createPath(BlockPos target) {
+        this.path.clear();
         this.currentIndex = 0;
-        this.path = calculatePath(target);
+        
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.player == null) return;
+        
+        BlockPos start = client.player.getBlockPos();
+        this.path = calculateLinePath(start, target);
     }
 
-    private List<BlockPos> calculatePath(BlockPos target) {
+    // ANOTAÇÃO: A geração do caminho foi movida para seu próprio método para clareza.
+    private List<BlockPos> calculateLinePath(BlockPos start, BlockPos target) {
         List<BlockPos> waypoints = new ArrayList<>();
-        MinecraftClient client = MinecraftClient.getInstance();
-        PlayerEntity player = client.player;
-        if (player == null) return waypoints;
+        World world = MinecraftClient.getInstance().world;
+        if (world == null) return Collections.emptyList();
 
-        BlockPos start = player.getBlockPos();
         double distance = Math.sqrt(start.getSquaredDistance(target));
-        int steps = Math.max(1, (int)Math.ceil(distance / 3.0)); // Pontos mais próximos
-        
+        int steps = Math.max(1, (int) Math.ceil(distance / 2.0)); // Pontos mais próximos para melhor ajuste ao terreno
+
+        BlockPos lastPos = null;
         for (int i = 0; i <= steps; i++) {
-            double t = (double)i / steps;
-            int x = (int)(start.getX() + (target.getX() - start.getX()) * t);
-            int y = (int)(start.getY() + (target.getY() - start.getY()) * t);
-            int z = (int)(start.getZ() + (target.getZ() - start.getZ()) * t);
-            y = getSafeY(client.world, x, y, z);
-            waypoints.add(new BlockPos(x, y, z));
+            double t = (double) i / steps;
+            int x = (int) (start.getX() + (target.getX() - start.getX()) * t);
+            int y = (int) (start.getY() + (target.getY() - start.getY()) * t);
+            int z = (int) (start.getZ() + (target.getZ() - start.getZ()) * t);
+            
+            BlockPos currentPos = new BlockPos(x, getSafeY(world, x, y, z), z);
+
+            // Evita adicionar pontos duplicados
+            if (!currentPos.equals(lastPos)) {
+                waypoints.add(currentPos);
+                lastPos = currentPos;
+            }
         }
         return waypoints;
     }
 
-    private int getSafeY(World world, int x, int y, int z) {
-        BlockPos pos = new BlockPos(x, y, z);
-        while (pos.getY() > world.getBottomY() && world.getBlockState(pos).isAir()) {
-            pos = pos.down();
+    private int getSafeY(World world, int x, int startY, int z) {
+        BlockPos.Mutable currentPos = new BlockPos.Mutable(x, startY, z);
+        
+        // Procura para baixo por um chão sólido
+        for (int y = startY; y > world.getBottomY(); y--) {
+            currentPos.setY(y);
+            if (!world.getBlockState(currentPos).isAir()) {
+                 // Sobe até encontrar espaço para o jogador
+                return findHeadroom(world, currentPos) + 1;
+            }
         }
-        if (!world.getBlockState(pos).isAir()) {
-            pos = pos.up();
+        
+        // Se não achou chão, procura para cima
+        for (int y = startY; y < world.getTopY(); y++) {
+             currentPos.setY(y);
+             if (!world.getBlockState(currentPos).isAir()) {
+                return findHeadroom(world, currentPos) + 1;
+            }
         }
-        return Math.min(pos.getY() + 1, world.getTopY());
+        
+        return startY; // Fallback
     }
 
-    public void update() {
-        if (path.isEmpty() || currentIndex >= path.size()) return;
-        
+    private int findHeadroom(World world, BlockPos groundPos) {
+        BlockPos.Mutable pos = new BlockPos.Mutable(groundPos.getX(), groundPos.getY() + 1, groundPos.getZ());
+        while(pos.getY() < world.getTopY()) {
+            if (world.getBlockState(pos).isAir() && world.getBlockState(pos.up()).isAir()) {
+                return pos.getY() - 1; // Retorna a coordenada do chão
+            }
+            pos.move(0, 1, 0);
+        }
+        return groundPos.getY();
+    }
+
+
+    public void updateMovement() {
+        if (isPathEmpty()) return;
+
         MinecraftClient client = MinecraftClient.getInstance();
-        PlayerEntity player = client.player;
+        ClientPlayerEntity player = client.player;
         if (player == null || client.world == null) return;
 
         BlockPos nextPos = path.get(currentIndex);
-        Vec3d nextVec = new Vec3d(nextPos.getX() + 0.5, nextPos.getY(), nextPos.getZ() + 0.5);
-        Vec3d direction = nextVec.subtract(player.getPos()).normalize();
+        Vec3d nextVecCenter = nextPos.toCenterPos();
+
+        // ANOTAÇÃO: Verificação simples de obstáculo (parede)
+        if (isPathObstructed(player.getEyePos(), nextVecCenter)) {
+            player.sendMessage(net.minecraft.text.Text.literal("§cObstáculo detectado! Navegação interrompida."), true);
+            PathfinderManager.setEnabled(false);
+            return;
+        }
+
+        // Rotaciona o jogador para o próximo ponto
+        Vec3d direction = nextVecCenter.subtract(player.getPos()).normalize();
+        player.setYaw((float) Math.toDegrees(Math.atan2(-direction.x, direction.z)));
         
-        // Definir direção
-        player.setYaw((float)Math.toDegrees(Math.atan2(-direction.x, direction.z)));
-        
-        // Movimento contínuo
         client.options.forwardKey.setPressed(true);
+        client.options.sprintKey.setPressed(player.getHungerManager().getFoodLevel() > 6);
         
-        // Verificar e pular obstáculos
-        handleJumping(client, player);
+        handleJumping(player, nextPos);
         
-        // Verificar se chegou
-        if (player.getPos().distanceTo(nextVec) < 1.2) {
+        // Avança para o próximo ponto do caminho
+        if (player.getPos().distanceTo(nextVecCenter) < 1.8) {
             currentIndex++;
         }
     }
     
-    // <-- LÓGICA DE SALTO CORRIGIDA AQUI -->
-    private void handleJumping(MinecraftClient client, PlayerEntity player) {
-        if (!player.isOnGround()) {
-            client.options.jumpKey.setPressed(false);
-            return;
+    // ANOTAÇÃO: Lógica de salto melhorada e mais proativa
+    private void handleJumping(ClientPlayerEntity player, BlockPos nextNode) {
+        if (!player.isOnGround()) return;
+
+        MinecraftClient client = MinecraftClient.getInstance();
+
+        // Pula se o próximo bloco do caminho estiver acima
+        boolean shouldJump = nextNode.getY() > player.getBlockPos().getY();
+
+        // Pula se houver um bloco na frente (lógica original)
+        if (!shouldJump) {
+             Vec3d forwardVec = Vec3d.fromPolar(0, player.getYaw()).normalize().multiply(0.6);
+             BlockPos blockInFront = player.getBlockPos().add((int)forwardVec.x, 0, (int)forwardVec.z);
+             BlockState stateInFront = client.world.getBlockState(blockInFront);
+             
+             if (!stateInFront.isAir() && client.world.getBlockState(blockInFront.up()).isAir()) {
+                 shouldJump = true;
+             }
         }
-
-        Vec3d playerPos = player.getPos();
-        Vec3d forwardVec = Vec3d.fromPolar(0, player.getYaw()).normalize().multiply(0.4);
-        BlockPos blockInFront = new BlockPos((int)(playerPos.x + forwardVec.x), player.getBlockPos().getY(), (int)(playerPos.z + forwardVec.z));
-
-        BlockState stateInFront = client.world.getBlockState(blockInFront);
-        BlockState stateInFrontUp = client.world.getBlockState(blockInFront.up());
-        BlockState statePlayerHead = client.world.getBlockState(player.getBlockPos().up(2));
-
-        // Só pula se:
-        // 1. O bloco na frente não for ar (é um obstáculo).
-        // 2. O bloco acima do obstáculo for ar (cabeça do jogador).
-        // 3. O bloco 2 acima do obstáculo também for ar (para não bater a cabeça ao pular).
-        boolean shouldJump = !stateInFront.isAir() && stateInFrontUp.isAir() && statePlayerHead.isAir();
-
+        
         client.options.jumpKey.setPressed(shouldJump);
+    }
+    
+    // ANOTAÇÃO: Nova função para verificar se há uma parede entre o jogador e o próximo ponto.
+    private boolean isPathObstructed(Vec3d start, Vec3d end) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.world == null) return true;
+
+        RaycastContext context = new RaycastContext(start, end, RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, client.player);
+        BlockHitResult result = client.world.raycast(context);
+
+        // Se o raycast acertou um bloco, o caminho está obstruído
+        return result.getType() == BlockHitResult.Type.BLOCK;
     }
 
     public List<BlockPos> getPath() { return path; }
-}
+    public boolean isPathEmpty() { return path.isEmpty() || currentIndex >= path.size(); }
+    public void clearPath() {
+        path.clear();
+        currentIndex = 0;
+    }
+            }
