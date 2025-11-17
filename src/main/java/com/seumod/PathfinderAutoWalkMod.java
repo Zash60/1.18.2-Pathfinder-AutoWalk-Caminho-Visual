@@ -8,11 +8,10 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
-import net.minecraft.text.LiteralText; // CORREÇÃO: Import correto para 1.18.2
+import net.minecraft.text.LiteralText;
 import org.lwjgl.glfw.GLFW;
 
 public class PathfinderAutoWalkMod implements ClientModInitializer {
-    public static KeyBinding toggleAutoWalkKey;
     public static KeyBinding togglePathfinderKey;
 
     @Override
@@ -20,35 +19,23 @@ public class PathfinderAutoWalkMod implements ClientModInitializer {
         GotoCommand.register();
         PathRenderer.register();
 
-        String category = "category.pathfindermod";
-
-        toggleAutoWalkKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-            "key.pathfindermod.toggle_autowalk", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_O, category
-        ));
-        
         togglePathfinderKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-            "key.pathfindermod.toggle_pathfinder", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_P, category
+            "key.pathfindermod.toggle_pathfinder", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_P, "category.pathfindermod"
         ));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player == null) return;
 
-            while (toggleAutoWalkKey.wasPressed()) {
-                PathfinderManager.toggleAutoWalk();
-                // CORREÇÃO: Usando new LiteralText() em vez de Text.literal()
-                client.player.sendMessage(new LiteralText(
-                    "AutoWalk: " + (PathfinderManager.isAutoWalk() ? "§aON" : "§cOFF")
-                ), true);
+            while (togglePathfinderKey.wasPressed()) {
+                if (PathfinderManager.isNavigationActive()) {
+                    PathfinderManager.toggleMovement();
+                    client.player.sendMessage(new LiteralText(
+                        "Movimento: " + (PathfinderManager.isMovementPaused() ? "§cPAUSADO" : "§aATIVO")
+                    ), true);
+                }
             }
 
-            while (togglePathfinderKey.wasPressed()) {
-                PathfinderManager.togglePathfinder();
-                // CORREÇÃO: Usando new LiteralText() em vez de Text.literal()
-                client.player.sendMessage(new LiteralText(
-                    "Pathfinder: " + (PathfinderManager.isEnabled() ? "§aON" : "§cOFF")
-                ), true);
-            }
-            
+            // A lógica de atualização agora é totalmente gerenciada pelo PathfinderManager
             PathfinderManager.update();
         });
     }
