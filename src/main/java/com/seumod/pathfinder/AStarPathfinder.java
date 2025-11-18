@@ -9,7 +9,7 @@ import java.util.*;
 
 public class AStarPathfinder {
 
-    private static final int MAX_SEARCH_NODES = 40000; // Aumentado um pouco para buscas mais complexas
+    private static final int MAX_SEARCH_NODES = 40000;
 
     public static List<BlockPos> findPath(BlockPos start, BlockPos target) {
         World world = MinecraftClient.getInstance().world;
@@ -30,22 +30,20 @@ public class AStarPathfinder {
             openSetMap.remove(currentNode.pos);
             nodesSearched++;
 
-            if (currentNode.pos.getSquaredDistance(target) < 2) { // Chega perto o suficiente
+            // CORREÇÃO: A condição de parada agora exige a chegada no bloco EXATO.
+            // Isso resolve o problema de parar um bloco antes.
+            if (currentNode.pos.equals(target)) {
                 return reconstructPath(currentNode);
             }
 
             closedSet.add(currentNode.pos);
 
             for (Node neighbor : getNeighbors(world, currentNode, target)) {
-                if (closedSet.contains(neighbor.pos)) {
-                    continue;
-                }
+                if (closedSet.contains(neighbor.pos)) continue;
 
                 Node existingNode = openSetMap.get(neighbor.pos);
                 if (existingNode == null || neighbor.gCost < existingNode.gCost) {
-                    if (existingNode != null) {
-                        openSet.remove(existingNode);
-                    }
+                    if (existingNode != null) openSet.remove(existingNode);
                     openSet.add(neighbor);
                     openSetMap.put(neighbor.pos, neighbor);
                 }
@@ -58,7 +56,7 @@ public class AStarPathfinder {
         List<Node> neighbors = new ArrayList<>();
         BlockPos currentPos = currentNode.pos;
 
-        // --- 1. Movimentos Adjacentes ---
+        // Movimentos Adjacentes
         for (int dx = -1; dx <= 1; dx++) {
             for (int dz = -1; dz <= 1; dz++) {
                 if (dx == 0 && dz == 0) continue;
@@ -75,14 +73,9 @@ public class AStarPathfinder {
             }
         }
 
-        // --- 2. Movimentos de Salto (Parkour) ---
+        // Movimentos de Salto (Parkour)
         for (Direction direction : Direction.Type.HORIZONTAL) {
-            // Salto simples de 1 bloco de vão
-            if (checkJump(world, currentPos, direction, 1)) {
-                addNeighborNode(neighbors, currentNode, currentPos.offset(direction, 2), target, 2.0);
-            }
-            // Saltos longos (requer sprint)
-            for (int len = 2; len <= 4; len++) {
+            for (int len = 1; len <= 4; len++) {
                 if (checkJump(world, currentPos, direction, len)) {
                     addNeighborNode(neighbors, currentNode, currentPos.offset(direction, len + 1), target, len + 1.0);
                 }
@@ -91,23 +84,12 @@ public class AStarPathfinder {
         return neighbors;
     }
 
-    // CORREÇÃO: Nova função para verificar saltos de qualquer comprimento
     private static boolean checkJump(World world, BlockPos start, Direction direction, int gapLength) {
-        // Bloco de aterrissagem
         BlockPos landingPos = start.offset(direction, gapLength + 1);
-
-        // O local de aterrissagem deve ser seguro
-        if (!isTraversable(world, landingPos)) {
-            return false;
-        }
-
-        // Verifica o espaço aéreo para o salto
+        if (!isTraversable(world, landingPos)) return false;
         for (int i = 1; i <= gapLength; i++) {
             BlockPos gapBlock = start.offset(direction, i);
-            // O vão e o espaço acima dele devem estar livres
-            if (!isPassable(world, gapBlock) || !isPassable(world, gapBlock.up())) {
-                return false;
-            }
+            if (!isPassable(world, gapBlock) || !isPassable(world, gapBlock.up())) return false;
         }
         return true;
     }
@@ -149,4 +131,4 @@ public class AStarPathfinder {
     private static double getHeuristic(BlockPos from, BlockPos to) {
         return Math.sqrt(from.getSquaredDistance(to));
     }
-        }
+}
