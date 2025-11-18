@@ -1,23 +1,22 @@
 package com.seumod.pathfinder;
 
-import net.minecraft.block.Material;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction; // CORREÇÃO: Import necessário
+import net.minecraft.util.math.Direction;
 import net.minecraft.world.World;
 
 import java.util.*;
 
 public class AStarPathfinder {
 
-    private static final int MAX_SEARCH_NODES = 30000; // Limite para evitar busca infinita
+    private static final int MAX_SEARCH_NODES = 30000;
 
     public static List<BlockPos> findPath(BlockPos start, BlockPos target) {
         World world = MinecraftClient.getInstance().world;
         if (world == null) return null;
 
         PriorityQueue<Node> openSet = new PriorityQueue<>();
-        Map<BlockPos, Node> openSetMap = new HashMap<>(); // Para acesso rápido e atualização de nós
+        Map<BlockPos, Node> openSetMap = new HashMap<>();
         Set<BlockPos> closedSet = new HashSet<>();
 
         Node startNode = new Node(start, null, 0, getHeuristic(start, target));
@@ -52,33 +51,30 @@ public class AStarPathfinder {
                 }
             }
         }
-        return null; // Caminho não encontrado
+        return null;
     }
 
     private static List<Node> getNeighbors(World world, Node currentNode, BlockPos target) {
         List<Node> neighbors = new ArrayList<>();
         BlockPos currentPos = currentNode.pos;
 
+        // --- 1. Vizinhos Adjacentes (Andar, Subir, Cair) ---
         for (int dx = -1; dx <= 1; dx++) {
             for (int dz = -1; dz <= 1; dz++) {
                 if (dx == 0 && dz == 0) continue;
 
                 BlockPos neighborPos = currentPos.add(dx, 0, dz);
-                // CORREÇÃO: Custo de movimento calculado aqui
                 double movementCost = (dx != 0 && dz != 0) ? 1.414 : 1.0;
 
-                // Movimento normal no chão
                 if (isTraversable(world, neighborPos)) {
                     addNeighborNode(neighbors, currentNode, neighborPos, target, movementCost);
                 }
                 
-                // Movimento de subida (salto)
                 BlockPos jumpPos = neighborPos.up();
                 if (isTraversable(world, jumpPos) && !isPassable(world, neighborPos)) {
-                     addNeighborNode(neighbors, currentNode, jumpPos, target, movementCost + 0.5); // Custo extra para pular
+                     addNeighborNode(neighbors, currentNode, jumpPos, target, movementCost + 0.5);
                 }
 
-                // Movimento de descida (queda segura)
                 BlockPos fallCheckPos = currentPos.add(dx, -1, dz);
                 if (isTraversable(world, fallCheckPos) && isPassable(world, currentPos.add(dx, 0, dz))) {
                     BlockPos landingPos = findLandingPos(world, fallCheckPos);
@@ -88,6 +84,22 @@ public class AStarPathfinder {
                 }
             }
         }
+
+        // --- CORREÇÃO: 2. Vizinhos de Salto (Parkour sobre vãos) ---
+        // Itera sobre as 4 direções cardeais (Norte, Sul, Leste, Oeste)
+        for (Direction direction : Direction.Type.HORIZONTAL) {
+            BlockPos gapPos = currentPos.offset(direction);      // O bloco do vão
+            BlockPos landingPos = gapPos.offset(direction); // O bloco onde vamos aterrissar
+
+            // Condições para o salto:
+            // 1. O vão e o espaço acima dele devem estar livres (passable).
+            // 2. O local de aterrissagem deve ser seguro (traversable).
+            if (isPassable(world, gapPos) && isPassable(world, gapPos.up()) && isTraversable(world, landingPos)) {
+                // Adiciona o nó do salto com um custo de movimento de 2 (distância de 2 blocos).
+                addNeighborNode(neighbors, currentNode, landingPos, target, 2.0);
+            }
+        }
+
         return neighbors;
     }
 
@@ -108,15 +120,12 @@ public class AStarPathfinder {
         neighbors.add(new Node(pos, parent, gCost, hCost));
     }
 
-    // Verifica se o jogador pode ficar nesta posição (chão sólido, 2 blocos de ar)
     private static boolean isTraversable(World world, BlockPos pos) {
-        // CORREÇÃO: Usando isSideSolidFullSquare para verificar o chão
         return world.getBlockState(pos.down()).isSideSolidFullSquare(world, pos.down(), Direction.UP) &&
                isPassable(world, pos) &&
                isPassable(world, pos.up());
     }
     
-    // Verifica se um bloco específico é "passável" (não sólido, como ar, água, etc.)
     private static boolean isPassable(World world, BlockPos pos) {
         return !world.getBlockState(pos).getMaterial().isSolid();
     }
@@ -133,7 +142,6 @@ public class AStarPathfinder {
     }
 
     private static double getHeuristic(BlockPos from, BlockPos to) {
-        // Distância Euclidiana é uma boa heurística para Minecraft
         return Math.sqrt(from.getSquaredDistance(to));
     }
 }
