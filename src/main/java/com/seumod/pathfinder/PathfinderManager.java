@@ -20,19 +20,20 @@ public class PathfinderManager {
 
     public static void setTarget(BlockPos target) {
         stop();
-        targetPos = target;
-
+        
         ClientPlayerEntity player = MinecraftClient.getInstance().player;
         if (player == null) return;
 
         BlockPos safeStartPos = getSafePlayerStartPos(player);
 
-        // CORREÇÃO: Verifica se o jogador já está no destino.
         if (safeStartPos.equals(target)) {
             player.sendMessage(new LiteralText("§aVocê já está no destino!"), true);
+            // CORREÇÃO: Garante que o alvo seja nulo para o renderer não desenhar nada.
+            targetPos = null; 
             return;
         }
         
+        targetPos = target;
         navigationActive = true;
         movementPaused = false;
         player.sendMessage(new LiteralText("§eCalculando caminho com A*..."), true);
@@ -49,28 +50,24 @@ public class PathfinderManager {
             }, MinecraftClient.getInstance());
     }
     
-    // CORREÇÃO: Nova função para encontrar um ponto de partida seguro e confiável.
     private static BlockPos getSafePlayerStartPos(ClientPlayerEntity player) {
         BlockPos playerPos = player.getBlockPos();
         if (player.isOnGround()) {
             return playerPos;
         }
-        // Se estiver no ar, procura o chão abaixo
-        for (int i = 0; i < 5; i++) {
-            BlockPos checkPos = playerPos.down(i);
+        for (int i = 1; i <= 5; i++) {
+            BlockPos checkPos = player.getBlockPos().down(i);
             if (!player.world.getBlockState(checkPos).isAir()) {
                 return checkPos.up();
             }
         }
-        return playerPos; // Fallback
+        return playerPos;
     }
 
     public static void toggleMovement() {
         if (navigationActive) {
             movementPaused = !movementPaused;
-            if (movementPaused) {
-                stopMoving();
-            }
+            if (movementPaused) stopMoving();
         }
     }
 
@@ -84,9 +81,7 @@ public class PathfinderManager {
     }
 
     public static void update() {
-        if (!navigationActive || movementPaused) {
-            return;
-        }
+        if (!navigationActive || movementPaused) return;
 
         ClientPlayerEntity player = MinecraftClient.getInstance().player;
         if (player == null) {
