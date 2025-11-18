@@ -1,14 +1,13 @@
 package com.seumod.pathfinder;
 
-import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
+
 import java.util.ArrayList;
 import java.util.List;
 
-// Esta classe agora apenas EXECUTA um caminho pré-calculado.
 public class SimplePathfinder {
     private List<BlockPos> path = new ArrayList<>();
     private int currentIndex = 0;
@@ -28,22 +27,41 @@ public class SimplePathfinder {
         BlockPos nextPos = path.get(currentIndex);
         Vec3d nextVecCenter = new Vec3d(nextPos.getX() + 0.5, nextPos.getY(), nextPos.getZ() + 0.5);
 
-        // Rotaciona o jogador para o próximo ponto
+        // --- LÓGICA DE PARADA DE PRECISÃO ---
+        boolean isFinalNode = currentIndex == path.size() - 1;
+
+        if (isFinalNode) {
+            // Calcula a distância horizontal (ignorando o eixo Y)
+            double dx = player.getX() - nextVecCenter.x;
+            double dz = player.getZ() - nextVecCenter.z;
+            double horizontalDistanceSq = dx * dx + dz * dz;
+
+            // Se estiver muito perto do centro (distância < 0.15 blocos), considera que chegou.
+            // Usamos a distância ao quadrado para evitar o cálculo da raiz quadrada (mais rápido). 0.15*0.15 = 0.0225
+            if (horizontalDistanceSq < 0.0225) {
+                PathfinderManager.stopMoving(); // Para imediatamente
+                currentIndex++; // Marca o caminho como finalizado
+                return; // Encerra a execução deste tick
+            }
+        }
+        
+        // --- MOVIMENTO NORMAL ---
         lookAt(player, nextVecCenter);
 
-        // Pressiona as teclas de movimento
         client.options.forwardKey.setPressed(true);
-        client.options.sprintKey.setPressed(player.getHungerManager().getFoodLevel() > 6);
+        // CORREÇÃO: Desativa o sprint na aproximação final para não passar do ponto.
+        client.options.sprintKey.setPressed(!isFinalNode && player.getHungerManager().getFoodLevel() > 6);
         handleJumping(player, nextPos);
 
-        // Avança para o próximo ponto do caminho
-        if (player.getPos().isInRange(nextVecCenter, 1.5)) {
+        // Avança para o próximo ponto do caminho (exceto para o último nó, que tem sua própria lógica de parada)
+        if (!isFinalNode && player.getPos().isInRange(nextVecCenter, 1.5)) {
             currentIndex++;
         }
     }
-    
+
     private void lookAt(ClientPlayerEntity player, Vec3d target) {
-        Vec3d direction = target.subtract(player.getPos()).normalize();
+        Vec3d playerPos = player.getEyePos(); // Usa a posição dos olhos para uma mira mais estável
+        Vec3d direction = target.subtract(playerPos).normalize();
         double yaw = Math.toDegrees(Math.atan2(-direction.x, direction.z));
         player.setYaw((float) yaw);
     }
@@ -54,7 +72,6 @@ public class SimplePathfinder {
             client.options.jumpKey.setPressed(false);
             return;
         }
-        // Pula se o próximo nó do caminho estiver acima da posição do jogador
         boolean shouldJump = nextNode.getY() > player.getBlockPos().getY();
         client.options.jumpKey.setPressed(shouldJump);
     }
