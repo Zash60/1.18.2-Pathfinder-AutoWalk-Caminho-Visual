@@ -9,20 +9,17 @@ import net.minecraft.client.render.*;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
-// Não é necessário importar Matrix4f, pois ele é obtido através de matrices.peek().getPositionMatrix()
 
 import java.util.List;
 
 public class PathRenderer {
     public static void register() {
         WorldRenderEvents.AFTER_TRANSLUCENT.register(context -> {
-            // CORREÇÃO: Renderiza sempre que a navegação estiver ativa (mesmo que pausada).
             if (!PathfinderManager.isNavigationActive()) return;
 
             MinecraftClient client = MinecraftClient.getInstance();
             if (client.player == null) return;
 
-            // CORREÇÃO: Obtenha o pathExecutor em vez do antigo pathfinder.
             SimplePathfinder pathExecutor = PathfinderManager.getPathExecutor();
             List<BlockPos> path = pathExecutor.getPath();
             if (path == null || path.isEmpty()) return;
@@ -34,37 +31,38 @@ public class PathRenderer {
             matrices.push();
             matrices.translate(-cameraPos.x, -cameraPos.y, -cameraPos.z);
 
-            // Configurações de renderização aprimoradas para melhor visibilidade
             RenderSystem.setShader(GameRenderer::getPositionColorShader);
             RenderSystem.disableCull();
             RenderSystem.disableDepthTest();
             RenderSystem.enableBlend();
             RenderSystem.defaultBlendFunc();
-            RenderSystem.lineWidth(3.0F); // Linha mais grossa
+            RenderSystem.lineWidth(3.0F);
 
             Tessellator tessellator = Tessellator.getInstance();
             BufferBuilder buffer = tessellator.getBuffer();
 
-            // Desenha a linha do caminho
+            // --- Operação de Desenho 1: A Linha do Caminho ---
             buffer.begin(VertexFormat.DrawMode.DEBUG_LINE_STRIP, VertexFormats.POSITION_COLOR);
             for (BlockPos pos : path) {
-                // Cores vibrantes
                 buffer.vertex(matrices.peek().getPositionMatrix(), (float)(pos.getX() + 0.5), (float)(pos.getY() + 0.1), (float)(pos.getZ() + 0.5))
                     .color(1.0f, 0.2f, 0.2f, 0.8f).next();
             }
-            tessellator.draw();
+            tessellator.draw(); // Finaliza o desenho da linha
 
+            // --- Operação de Desenho 2: A Caixa do Destino ---
             BlockPos target = PathfinderManager.getTarget();
             if (target != null) {
-                // O método drawBox espera que o buffer esteja sendo desenhado.
-                // É mais seguro desenhá-lo separadamente.
-                WorldRenderer.drawBox(matrices, buffer, target.getX(), target.getY(), target.getZ(), target.getX() + 1, target.getY() + 1, target.getZ() + 1, 0.2f, 1.0f, 0.2f, 0.7f, 0.2f, 1.0f, 0.2f);
+                // CORREÇÃO: Inicia uma NOVA operação de desenho para a caixa.
+                buffer.begin(VertexFormat.DrawMode.DEBUG_LINES, VertexFormats.POSITION_COLOR);
+                // O método WorldRenderer.drawBox adiciona os vértices ao buffer atual.
+                WorldRenderer.drawBox(matrices, buffer, target.getX(), target.getY(), target.getZ(), target.getX() + 1, target.getY() + 1, target.getZ() + 1, 0.2f, 1.0f, 0.2f, 0.7f);
+                tessellator.draw(); // Finaliza o desenho da caixa.
             }
 
             matrices.pop();
             RenderSystem.enableCull();
             RenderSystem.enableDepthTest();
-            RenderSystem.lineWidth(1.0F); // Reseta a espessura da linha
+            RenderSystem.lineWidth(1.0F);
         });
     }
 }
