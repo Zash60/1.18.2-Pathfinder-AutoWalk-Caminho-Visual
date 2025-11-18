@@ -6,32 +6,38 @@ import net.minecraft.text.LiteralText;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 public class PathfinderManager {
     private static final SimplePathfinder pathExecutor = new SimplePathfinder();
-    private static boolean navigationActive = false; // Se há um destino definido
-    private static boolean movementPaused = false;   // Se o jogador pausou com a tecla P
+    private static boolean navigationActive = false;
+    private static boolean movementPaused = false;
 
     private static BlockPos targetPos = null;
     private static Vec3d lastPlayerPos = Vec3d.ZERO;
     private static int ticksStuck = 0;
-    private static final int MAX_TICKS_STUCK = 60; // 3 segundos
+    private static final int MAX_TICKS_STUCK = 60;
 
-    // Inicia o processo de pathfinding
     public static void setTarget(BlockPos target) {
-        stop(); // Para qualquer navegação anterior
+        stop();
         targetPos = target;
-        navigationActive = true;
-        movementPaused = false;
 
         ClientPlayerEntity player = MinecraftClient.getInstance().player;
         if (player == null) return;
+
+        BlockPos safeStartPos = getSafePlayerStartPos(player);
+
+        // CORREÇÃO: Verifica se o jogador já está no destino.
+        if (safeStartPos.equals(target)) {
+            player.sendMessage(new LiteralText("§aVocê já está no destino!"), true);
+            return;
+        }
+        
+        navigationActive = true;
+        movementPaused = false;
         player.sendMessage(new LiteralText("§eCalculando caminho com A*..."), true);
 
-        // Executa o A* em uma thread separada para não congelar o jogo
-        CompletableFuture.supplyAsync(() -> AStarPathfinder.findPath(player.getBlockPos(), target))
+        CompletableFuture.supplyAsync(() -> AStarPathfinder.findPath(safeStartPos, target))
             .thenAcceptAsync(path -> {
                 if (path != null && !path.isEmpty()) {
                     pathExecutor.setPath(path);
@@ -40,10 +46,25 @@ public class PathfinderManager {
                     player.sendMessage(new LiteralText("§cNão foi possível encontrar um caminho."), true);
                     stop();
                 }
-            }, MinecraftClient.getInstance()); // Executa o thenAccept na thread do cliente
+            }, MinecraftClient.getInstance());
+    }
+    
+    // CORREÇÃO: Nova função para encontrar um ponto de partida seguro e confiável.
+    private static BlockPos getSafePlayerStartPos(ClientPlayerEntity player) {
+        BlockPos playerPos = player.getBlockPos();
+        if (player.isOnGround()) {
+            return playerPos;
+        }
+        // Se estiver no ar, procura o chão abaixo
+        for (int i = 0; i < 5; i++) {
+            BlockPos checkPos = playerPos.down(i);
+            if (!player.world.getBlockState(checkPos).isAir()) {
+                return checkPos.up();
+            }
+        }
+        return playerPos; // Fallback
     }
 
-    // Usado pela tecla P para pausar/retomar
     public static void toggleMovement() {
         if (navigationActive) {
             movementPaused = !movementPaused;
@@ -53,7 +74,6 @@ public class PathfinderManager {
         }
     }
 
-    // Chamado pelo comando /stop ou ao chegar
     public static void stop() {
         navigationActive = false;
         movementPaused = false;
@@ -68,18 +88,21 @@ public class PathfinderManager {
             return;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        ClientPlayerEntity player = client.player;
-        if (player == null || pathExecutor.isPathFinished()) {
-            if (navigationActive && targetPos != null) {
+        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+        if (player == null) {
+            stop();
+            return;
+        }
+
+        if (pathExecutor.isPathFinished()) {
+            if (navigationActive) {
                 player.sendMessage(new LiteralText("§aDestino alcançado!"), true);
             }
             stop();
             return;
         }
 
-        // Detecção de jogador preso
-        if (player.getPos().distanceTo(lastPlayerPos) < 0.1 && player.isOnGround()) {
+        if (player.getPos().distanceTo(lastPlayerPos) < 0.05 && player.isOnGround()) {
             ticksStuck++;
         } else {
             ticksStuck = 0;
@@ -104,7 +127,6 @@ public class PathfinderManager {
         }
     }
     
-    // Getters para o Renderer e Keybinds
     public static boolean isNavigationActive() { return navigationActive; }
     public static boolean isMovementPaused() { return movementPaused; }
     public static SimplePathfinder getPathExecutor() { return pathExecutor; }
